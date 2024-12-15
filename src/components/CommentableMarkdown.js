@@ -417,6 +417,15 @@ export default function CommentableMarkdown({ content, onSave }) {
 
   // Handle selecting a section
   const handleSelectSection = (comments, sectionIndex) => {
+    // If clicking the same section, deselect it
+    if (selectedSection === sectionIndex) {
+      setSelectedSection(null);
+      setSelectedComments(null);
+      // Remove the hash from URL
+      navigate('', { replace: true });
+      return;
+    }
+
     const section = sections[sectionIndex];
     setSelectedSection(sectionIndex);
     setSelectedComments(comments);
