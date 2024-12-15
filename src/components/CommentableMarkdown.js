@@ -211,12 +211,44 @@ function Comment({ author, date, content, id, onDelete, onEdit }) {
 
 // Sliding comments panel
 function CommentsPanel({ comments = [], title = "Comments", onAddComment, onDeleteComment, onEditComment }) {
+  const [sortNewestFirst, setSortNewestFirst] = useState(false);
+  
+  // Sort comments by date
+  const sortedComments = React.useMemo(() => {
+    const sorted = [...comments].sort((a, b) => {
+      const dateA = new Date(a.date);
+      const dateB = new Date(b.date);
+      return sortNewestFirst ? dateB - dateA : dateA - dateB;
+    });
+    return sorted;
+  }, [comments, sortNewestFirst]);
+
   return (
     <div className="w-96 bg-law-paper border-l border-gray-200 shadow-lg h-full flex flex-col">
       <div className="p-4 border-b border-gray-200">
-        <h3 className="text-lg font-serif text-law-primary">
-          {title} ({comments.length})
-        </h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-serif text-law-primary">
+            {title} ({comments.length})
+          </h3>
+          {comments.length > 1 && (
+            <button
+              onClick={() => setSortNewestFirst(!sortNewestFirst)}
+              className="flex items-center space-x-1 px-2 py-1 text-sm text-gray-600 
+                       hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+              title={sortNewestFirst ? "Show oldest first" : "Show newest first"}
+            >
+              <span>{sortNewestFirst ? "Newest" : "Oldest"} first</span>
+              <svg 
+                className={`w-4 h-4 transform transition-transform ${sortNewestFirst ? 'rotate-180' : ''}`} 
+                fill="none" 
+                viewBox="0 0 24 24" 
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
       <div className="flex-1 overflow-y-auto p-4">
         {comments.length === 0 ? (
@@ -224,7 +256,7 @@ function CommentsPanel({ comments = [], title = "Comments", onAddComment, onDele
             Click anywhere in the document to add a comment.
           </div>
         ) : (
-          comments.map((comment) => (
+          sortedComments.map((comment) => (
             <Comment 
               key={comment.id} 
               {...comment} 
@@ -555,7 +587,7 @@ export default function CommentableMarkdown({ content, onSave }) {
 
   return (
     <div className="flex">
-      <div className="flex-1 relative">
+      <div className="flex-1 relative mr-96">
         <div className="prose prose-lg max-w-4xl mx-auto bg-white shadow-lg rounded-lg p-8">
           {sections.map((section, index) => (
             <CommentableBlock
@@ -577,17 +609,19 @@ export default function CommentableMarkdown({ content, onSave }) {
         </div>
       </div>
 
-      <CommentsPanel
-        comments={selectedComments || []}
-        title={selectedSection !== null 
-          ? "Comments for Selected Section" 
-          : "Select a Section to View Comments"}
-        onAddComment={selectedSection !== null 
-          ? (text) => addComment(text, selectedSection)
-          : null}
-        onDeleteComment={deleteComment}
-        onEditComment={editComment}
-      />
+      <div className="fixed top-0 right-0 h-screen">
+        <CommentsPanel
+          comments={selectedComments || []}
+          title={selectedSection !== null 
+            ? "Comments for Selected Section" 
+            : "Select a Section to View Comments"}
+          onAddComment={selectedSection !== null 
+            ? (text) => addComment(text, selectedSection)
+            : null}
+          onDeleteComment={deleteComment}
+          onEditComment={editComment}
+        />
+      </div>
     </div>
   );
 } 
