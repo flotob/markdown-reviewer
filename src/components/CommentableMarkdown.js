@@ -117,7 +117,7 @@ function Comment({ author, date, content, id, onDelete, onEdit }) {
       textareaRef.current.focus();
       textareaRef.current.setSelectionRange(editedContent.length, editedContent.length);
     }
-  }, [isEditing]);
+  }, [isEditing, editedContent]);
 
   const handleSubmit = () => {
     if (editedContent.trim() && editedContent !== content) {
@@ -424,7 +424,6 @@ export default function CommentableMarkdown({ content, onSave }) {
     // Find the section's content in the original markdown
     const lines = content.split('\n');
     let newLines = [];
-    let skipComment = false;
     
     // Go through each line
     for (let i = 0; i < lines.length; i++) {
@@ -483,6 +482,7 @@ export default function CommentableMarkdown({ content, onSave }) {
     // Find the section's content in the original markdown
     const lines = content.split('\n');
     let newLines = [];
+    const currentSection = sections[selectedSection];
     
     // Go through each line
     for (let i = 0; i < lines.length; i++) {
@@ -504,12 +504,16 @@ export default function CommentableMarkdown({ content, onSave }) {
         // Check if this is the comment we want to edit
         const commentText = nextLines.join('\n');
         if (commentText.includes(`id: ${commentId}`)) {
-          // Replace the content but keep metadata
-          const [header, ...rest] = commentText.split('\n');
-          const metaLines = rest.slice(0, 3); // author, date, id
-          newLines.push(header, ...metaLines, newContent, '-->');
-          i = j;
-          continue;
+          // Parse the existing comment to preserve metadata
+          const match = commentText.match(/<!--comment(?::line-\d+)?\nauthor: (.*)\ndate: (.*)\nid: (.*)\n/);
+          if (match) {
+            const [, author, date, id] = match;
+            // Reconstruct the comment with proper formatting
+            const updatedComment = `<!--comment:${currentSection.lineId}\nauthor: ${author}\ndate: ${date}\nid: ${id}\n${newContent}\n-->`;
+            newLines.push(updatedComment);
+            i = j;
+            continue;
+          }
         }
       }
       
@@ -533,8 +537,10 @@ export default function CommentableMarkdown({ content, onSave }) {
         };
       }
       
+      // Update both states together to avoid race conditions
+      const newComments = updatedSections[selectedSection].comments;
       setSections(updatedSections);
-      setSelectedComments(updatedSections[selectedSection].comments);
+      setSelectedComments(newComments);
     } catch (error) {
       console.error('Failed to edit comment:', error);
       // TODO: Show error message to user
