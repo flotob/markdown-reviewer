@@ -24,7 +24,7 @@ function FileList() {
 
   if (error) {
     return (
-      <div className="w-64 bg-white border-r border-gray-200 p-4">
+      <div className="fixed top-0 left-0 h-screen w-64 bg-white border-r border-gray-200 p-4">
         <h2 className="text-law-primary font-serif text-xl mb-4">Documents</h2>
         <div className="text-red-600">{error}</div>
       </div>
@@ -32,20 +32,22 @@ function FileList() {
   }
 
   return (
-    <div className="w-64 bg-white border-r border-gray-200 p-4">
-      <h2 className="text-law-primary font-serif text-xl mb-4">Documents</h2>
-      <ul className="space-y-2">
-        {documents.map((doc) => (
-          <li key={doc.path}>
-            <Link
-              to={`/document/${encodeURIComponent(doc.path)}`}
-              className="block p-2 hover:bg-law-paper rounded transition-colors duration-150"
-            >
-              {doc.title}
-            </Link>
-          </li>
-        ))}
-      </ul>
+    <div className="fixed top-0 left-0 h-screen w-64 bg-white border-r border-gray-200 flex flex-col">
+      <h2 className="text-law-primary font-serif text-xl p-4 border-b border-gray-200">Documents</h2>
+      <div className="flex-1 overflow-y-auto p-4">
+        <ul className="space-y-2">
+          {documents.map((doc) => (
+            <li key={doc.path}>
+              <Link
+                to={`/document/${encodeURIComponent(doc.path)}`}
+                className="block p-2 hover:bg-law-paper rounded transition-colors duration-150"
+              >
+                {doc.title}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }
@@ -129,7 +131,7 @@ function DocumentViewer() {
   }
 
   return (
-    <div className="flex-1 p-8 bg-law-paper min-h-screen overflow-auto">
+    <div className="ml-64 flex-1 p-8 bg-law-paper min-h-screen overflow-auto">
       {saving && (
         <div className="fixed top-4 right-4 bg-law-secondary text-white px-4 py-2 rounded-md shadow-lg z-50">
           Saving...
@@ -148,7 +150,7 @@ function App() {
         <Routes>
           <Route path="/document/:path" element={<DocumentViewer />} />
           <Route path="/" element={
-            <div className="flex-1 p-8 flex items-center justify-center">
+            <div className="ml-64 flex-1 p-8 flex items-center justify-center">
               <div className="text-center">
                 <h1 className="font-serif text-3xl text-law-primary mb-4">Legal Document Viewer</h1>
                 <p className="text-law-ink">Select a document from the sidebar to begin.</p>
