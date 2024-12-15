@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { v4 as uuidv4 } from 'uuid';
+import { useNavigate } from 'react-router-dom';
 
 // Simple comment button that appears on hover
 function CommentButton({ hasComments, commentsCount, onClick }) {
@@ -395,13 +396,45 @@ export default function CommentableMarkdown({ content, onSave }) {
   const [lineMap, setLineMap] = useState(new Map());
   const [selectedSection, setSelectedSection] = useState(null);
   const [selectedComments, setSelectedComments] = useState(null);
+  const navigate = useNavigate();
   
   // Parse sections whenever content changes
   React.useEffect(() => {
     const { sections: parsedSections, lineMap: parsedLineMap } = parseSections(content);
     setSections(parsedSections);
     setLineMap(parsedLineMap);
+    
+    // Check for line ID in URL hash on initial load
+    const hash = window.location.hash.slice(1); // Remove the # symbol
+    if (hash && hash.startsWith('line-')) {
+      const sectionIndex = parsedSections.findIndex(s => s.lineId === hash);
+      if (sectionIndex !== -1) {
+        setSelectedSection(sectionIndex);
+        setSelectedComments(parsedSections[sectionIndex].comments);
+      }
+    }
   }, [content]);
+
+  // Handle selecting a section
+  const handleSelectSection = (comments, sectionIndex) => {
+    const section = sections[sectionIndex];
+    setSelectedSection(sectionIndex);
+    setSelectedComments(comments);
+    
+    // Update URL with the line ID
+    navigate(`#${section.lineId}`, { replace: true });
+  };
+
+  // Scroll to selected section when URL hash changes
+  React.useEffect(() => {
+    const hash = window.location.hash.slice(1);
+    if (hash && hash.startsWith('line-')) {
+      const element = document.getElementById(hash);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [selectedSection]);
 
   // Add a new comment to the markdown content
   const addComment = async (text, sectionIndex) => {
@@ -579,12 +612,6 @@ export default function CommentableMarkdown({ content, onSave }) {
     }
   };
 
-  // Handle selecting a section
-  const handleSelectSection = (comments, sectionIndex) => {
-    setSelectedSection(sectionIndex);
-    setSelectedComments(comments);
-  };
-
   return (
     <div className="flex">
       <div className="flex-1 relative mr-96">
@@ -596,6 +623,7 @@ export default function CommentableMarkdown({ content, onSave }) {
               onClick={() => handleSelectSection(section.comments, index)}
             >
               <div 
+                id={section.lineId}
                 className={`transition-all duration-300 ${
                   selectedSection === index ? 'ring-2 ring-blue-200 rounded' : ''
                 }`}

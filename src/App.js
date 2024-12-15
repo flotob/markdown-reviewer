@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, useParams } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, useParams, useLocation } from 'react-router-dom';
 import CommentableMarkdown from './components/CommentableMarkdown';
 
 function FileList() {
@@ -57,6 +57,7 @@ function DocumentViewer() {
   const [content, setContent] = React.useState('');
   const [error, setError] = React.useState(null);
   const [saving, setSaving] = React.useState(false);
+  const location = useLocation();
 
   React.useEffect(() => {
     if (!path) return;
@@ -69,12 +70,23 @@ function DocumentViewer() {
         }
         return response.text();
       })
-      .then(text => setContent(text))
+      .then(text => {
+        setContent(text);
+        // After content is loaded, scroll to hash if it exists
+        if (location.hash && location.hash.startsWith('#line-')) {
+          setTimeout(() => {
+            const element = document.getElementById(location.hash.slice(1));
+            if (element) {
+              element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }, 100); // Small delay to ensure content is rendered
+        }
+      })
       .catch(error => {
         console.error('Error fetching document:', error);
         setError(error.message);
       });
-  }, [path]);
+  }, [path, location.hash]);
 
   const handleSave = async (newContent) => {
     if (!path) return;
