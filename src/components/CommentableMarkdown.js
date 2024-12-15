@@ -4,127 +4,104 @@ import remarkGfm from 'remark-gfm';
 import { v4 as uuidv4 } from 'uuid';
 
 // Simple comment button that appears on hover
-function CommentButton({ hasComments, commentsCount, onViewClick, onAddClick }) {
+function CommentButton({ hasComments, commentsCount, onClick }) {
+  if (!hasComments) return null;
+  
   return (
-    <div className="flex space-x-2">
-      {hasComments && (
-        <button
-          onClick={onViewClick}
-          className="w-8 h-8 rounded-full flex items-center justify-center
-                   bg-blue-500 text-white hover:bg-blue-600
-                   transition-all duration-200 shadow-sm"
-        >
-          <span className="text-sm font-medium">{commentsCount}</span>
-        </button>
-      )}
-      <button
-        onClick={onAddClick}
-        className="w-8 h-8 rounded-full flex items-center justify-center
-                 bg-blue-500 hover:bg-blue-600 text-white
-                 transition-all duration-200 shadow-sm"
-      >
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-        </svg>
-      </button>
-    </div>
+    <button
+      onClick={onClick}
+      className="w-8 h-8 rounded-full flex items-center justify-center
+                bg-blue-500 text-white hover:bg-blue-600
+                transition-all duration-200 shadow-sm"
+    >
+      <span className="text-sm font-medium">{commentsCount}</span>
+    </button>
   );
 }
 
 // Wrapper for paragraphs and headings that adds hover effect and comment button
-function CommentableBlock({ children, comments = [], onCommentClick, onViewComments }) {
+function CommentableBlock({ children, comments = [], onClick }) {
   const hasComments = comments.length > 0;
   
   return (
     <div className="group relative">
       {/* Apply hover styles directly to the prose element */}
       <div
-        onClick={onCommentClick}
+        onClick={onClick}
         className={`relative -ml-4 pl-4 cursor-pointer
                    border-l-2 transition-all duration-200
                    ${hasComments 
                      ? 'border-blue-500 bg-blue-50/30' 
-                     : 'border-transparent group-hover:border-blue-500'}
-                   group-hover:!bg-blue-50/40`}
+                     : 'border-transparent hover:border-blue-200'}
+                   hover:bg-blue-50/20`}
       >
         {children}
       </div>
       
-      {/* Comment button container */}
-      <div className="absolute -right-12 top-1/2 -translate-y-1/2
-                    opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-        <CommentButton
-          hasComments={hasComments}
-          commentsCount={comments.length}
-          onViewClick={() => onViewComments(comments)}
-          onAddClick={onCommentClick}
-        />
-      </div>
+      {/* Comment button container - only visible when has comments */}
+      {hasComments && (
+        <div className="absolute -right-12 top-1/2 -translate-y-1/2">
+          <CommentButton
+            hasComments={hasComments}
+            commentsCount={comments.length}
+            onClick={onClick}
+          />
+        </div>
+      )}
     </div>
   );
 }
 
-// Comment input overlay
-function CommentOverlay({ top, onSubmit, onCancel }) {
+// Comment input field for the sidebar
+function CommentInput({ onSubmit }) {
   const [comment, setComment] = useState('');
   
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (comment.trim()) {
+      onSubmit(comment);
+      setComment('');
+    }
+  };
+
   // Handle keyboard shortcuts
   React.useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape') {
-        onCancel();
-      } else if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
         e.preventDefault();
         if (comment.trim()) {
           onSubmit(comment);
+          setComment('');
         }
       }
     };
     
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [comment, onSubmit, onCancel]);
+  }, [comment, onSubmit]);
   
   return (
-    <div 
-      className="fixed inset-0 bg-black/30 flex items-center justify-center z-50"
-      onClick={(e) => e.target === e.currentTarget && onCancel()}
-    >
-      <div 
-        className="bg-white rounded-lg shadow-xl w-full max-w-lg transform transition-all"
-        style={{ marginTop: `${top}px` }}
-      >
-        <div className="p-4 border-b border-gray-200">
-          <h3 className="text-lg font-serif text-law-primary">Add Comment</h3>
-        </div>
-        <div className="p-4">
-          <textarea
-            className="w-full h-32 p-3 border border-gray-200 rounded-md 
-                       focus:ring-2 focus:ring-law-accent focus:border-transparent
-                       resize-none"
-            placeholder="Write your comment here... (Cmd+Enter to save, Esc to cancel)"
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            autoFocus
-          />
-        </div>
-        <div className="p-4 bg-gray-50 rounded-b-lg flex justify-end space-x-3">
-          <button
-            className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-            onClick={onCancel}
-          >
-            Cancel
-          </button>
-          <button
-            className="px-4 py-2 bg-blue-500 text-white rounded-md 
-                       hover:bg-blue-600 transition-colors"
-            onClick={() => onSubmit(comment)}
-          >
-            Add Comment
-          </button>
-        </div>
+    <form onSubmit={handleSubmit} className="p-4 border-t border-gray-200 bg-white">
+      <textarea
+        className="w-full h-24 p-3 border border-gray-200 rounded-md 
+                   focus:ring-2 focus:ring-blue-400 focus:border-transparent
+                   resize-none text-sm"
+        placeholder="Write your comment here... (Cmd+Enter to save)"
+        value={comment}
+        onChange={(e) => setComment(e.target.value)}
+      />
+      <div className="mt-2 flex justify-end">
+        <button
+          type="submit"
+          disabled={!comment.trim()}
+          className="px-4 py-2 bg-blue-500 text-white rounded-md 
+                   hover:bg-blue-600 transition-colors
+                   disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Add Comment
+        </button>
       </div>
-    </div>
+    </form>
   );
 }
 
@@ -149,27 +126,26 @@ function Comment({ author, date, content }) {
 }
 
 // Sliding comments panel
-function CommentsPanel({ comments, title = "Comments" }) {
+function CommentsPanel({ comments = [], title = "Comments", onAddComment }) {
   return (
-    <div className="w-96 bg-law-paper border-l border-gray-200 shadow-lg h-full">
-      <div className="h-full flex flex-col">
-        <div className="p-4 border-b border-gray-200">
-          <h3 className="text-lg font-serif text-law-primary">
-            {title} ({comments.length})
-          </h3>
-        </div>
-        <div className="flex-1 overflow-y-auto p-4">
-          {comments.length === 0 ? (
-            <div className="text-center text-gray-500 mt-8">
-              No comments yet. Click anywhere in the document to add one.
-            </div>
-          ) : (
-            comments.map((comment) => (
-              <Comment key={comment.id} {...comment} />
-            ))
-          )}
-        </div>
+    <div className="w-96 bg-law-paper border-l border-gray-200 shadow-lg h-full flex flex-col">
+      <div className="p-4 border-b border-gray-200">
+        <h3 className="text-lg font-serif text-law-primary">
+          {title} ({comments.length})
+        </h3>
       </div>
+      <div className="flex-1 overflow-y-auto p-4">
+        {comments.length === 0 ? (
+          <div className="text-center text-gray-500 mt-8">
+            No comments yet. Click the + button to add one.
+          </div>
+        ) : (
+          comments.map((comment) => (
+            <Comment key={comment.id} {...comment} />
+          ))
+        )}
+      </div>
+      {onAddComment && <CommentInput onSubmit={onAddComment} />}
     </div>
   );
 }
@@ -253,8 +229,6 @@ const parseSections = (markdown) => {
 };
 
 export default function CommentableMarkdown({ content, onSave }) {
-  const [showCommentInput, setShowCommentInput] = useState(false);
-  const [commentTarget, setCommentTarget] = useState(null);
   const [sections, setSections] = useState([]);
   const [selectedSection, setSelectedSection] = useState(null);
   const [selectedComments, setSelectedComments] = useState(null);
@@ -303,30 +277,15 @@ export default function CommentableMarkdown({ content, onSave }) {
       updatedSections[sectionIndex].comments.push(comment);
       
       setSections(updatedSections);
-      setShowCommentInput(false);
-      setSelectedSection(sectionIndex);
       setSelectedComments(updatedSections[sectionIndex].comments);
     } catch (error) {
       console.error('Failed to save comment:', error);
       // TODO: Show error message to user
-      setShowCommentInput(false);
     }
   };
 
-  // Handle clicking on a paragraph or heading to add a comment
-  const handleAddComment = (e, sectionIndex) => {
-    const rect = e.target.closest('.cursor-pointer').getBoundingClientRect();
-    setCommentTarget({
-      element: e.target,
-      sectionIndex,
-      top: rect.top + window.scrollY
-    });
-    setSelectedSection(sectionIndex);
-    setShowCommentInput(true);
-  };
-
-  // Handle viewing comments for a section
-  const handleViewComments = (comments, sectionIndex) => {
+  // Handle selecting a section
+  const handleSelectSection = (comments, sectionIndex) => {
     setSelectedSection(sectionIndex);
     setSelectedComments(comments);
   };
@@ -339,11 +298,10 @@ export default function CommentableMarkdown({ content, onSave }) {
             <CommentableBlock
               key={index}
               comments={section.comments}
-              onCommentClick={(e) => handleAddComment(e, index)}
-              onViewComments={(comments) => handleViewComments(comments, index)}
+              onClick={() => handleSelectSection(section.comments, index)}
             >
               <div 
-                className={`cursor-pointer transition-all duration-300 ${
+                className={`transition-all duration-300 ${
                   selectedSection === index ? 'ring-2 ring-blue-200 rounded' : ''
                 }`}
               >
@@ -358,19 +316,13 @@ export default function CommentableMarkdown({ content, onSave }) {
 
       <CommentsPanel
         comments={selectedComments || []}
-        title={selectedComments ? "Comments for Selected Section" : "Select a Section to View Comments"}
+        title={selectedSection !== null 
+          ? "Comments for Selected Section" 
+          : "Select a Section to View Comments"}
+        onAddComment={selectedSection !== null 
+          ? (text) => addComment(text, selectedSection)
+          : null}
       />
-
-      {showCommentInput && commentTarget && (
-        <CommentOverlay
-          top={commentTarget.top}
-          onSubmit={(text) => addComment(text, commentTarget.sectionIndex)}
-          onCancel={() => {
-            setShowCommentInput(false);
-            setCommentTarget(null);
-          }}
-        />
-      )}
     </div>
   );
 } 
