@@ -106,9 +106,9 @@ function CommentInput({ onSubmit }) {
 }
 
 // Individual comment in the comments panel
-function Comment({ author, date, content }) {
+function Comment({ author, date, content, id, onDelete }) {
   return (
-    <div className="bg-white rounded-lg shadow-sm p-4 mb-3">
+    <div className="bg-white rounded-lg shadow-sm p-4 mb-3 group relative">
       <div className="flex items-center mb-2">
         <span className="font-medium text-law-primary">{author}</span>
         <span className="mx-2 text-gray-300">•</span>
@@ -121,12 +121,26 @@ function Comment({ author, date, content }) {
         </span>
       </div>
       <p className="text-gray-700 whitespace-pre-wrap">{content}</p>
+      
+      {/* Delete button */}
+      <button
+        onClick={() => onDelete(id)}
+        className="absolute top-3 right-3 w-6 h-6 rounded-full 
+                 flex items-center justify-center
+                 text-gray-400 hover:text-red-500 hover:bg-red-50
+                 transition-all duration-200"
+        title="Delete comment"
+      >
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
     </div>
   );
 }
 
 // Sliding comments panel
-function CommentsPanel({ comments = [], title = "Comments", onAddComment }) {
+function CommentsPanel({ comments = [], title = "Comments", onAddComment, onDeleteComment }) {
   return (
     <div className="w-96 bg-law-paper border-l border-gray-200 shadow-lg h-full flex flex-col">
       <div className="p-4 border-b border-gray-200">
@@ -137,11 +151,15 @@ function CommentsPanel({ comments = [], title = "Comments", onAddComment }) {
       <div className="flex-1 overflow-y-auto p-4">
         {comments.length === 0 ? (
           <div className="text-center text-gray-500 mt-8">
-            No comments yet. Click the + button to add one.
+            Click anywhere in the document to add a comment.
           </div>
         ) : (
           comments.map((comment) => (
-            <Comment key={comment.id} {...comment} />
+            <Comment 
+              key={comment.id} 
+              {...comment} 
+              onDelete={onDeleteComment}
+            />
           ))
         )}
       </div>
@@ -284,6 +302,65 @@ export default function CommentableMarkdown({ content, onSave }) {
     }
   };
 
+  // Delete a comment from the markdown content
+  const deleteComment = async (commentId) => {
+    if (!selectedSection) return;
+    
+    // Find the section's content in the original markdown
+    const lines = content.split('\n');
+    let newLines = [];
+    let skipComment = false;
+    
+    // Go through each line
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      
+      // If we find a comment start, check if it's the one we want to delete
+      if (line.startsWith('<!--comment')) {
+        const nextLines = [];
+        let j = i;
+        // Collect all lines of the comment
+        while (j < lines.length && !lines[j].includes('-->')) {
+          nextLines.push(lines[j]);
+          j++;
+        }
+        if (j < lines.length) {
+          nextLines.push(lines[j]); // Add closing -->
+        }
+        
+        // Check if this is the comment we want to delete
+        const commentText = nextLines.join('\n');
+        if (commentText.includes(`id: ${commentId}`)) {
+          // Skip this comment
+          i = j;
+          continue;
+        }
+      }
+      
+      newLines.push(line);
+    }
+    
+    const newContent = newLines.join('\n');
+    
+    try {
+      // Save to file first
+      await onSave(newContent);
+      
+      // Only update UI after successful save
+      const updatedSections = [...sections];
+      const sectionComments = updatedSections[selectedSection].comments;
+      updatedSections[selectedSection].comments = sectionComments.filter(
+        comment => comment.id !== commentId
+      );
+      
+      setSections(updatedSections);
+      setSelectedComments(updatedSections[selectedSection].comments);
+    } catch (error) {
+      console.error('Failed to delete comment:', error);
+      // TODO: Show error message to user
+    }
+  };
+
   // Handle selecting a section
   const handleSelectSection = (comments, sectionIndex) => {
     setSelectedSection(sectionIndex);
@@ -322,6 +399,7 @@ export default function CommentableMarkdown({ content, onSave }) {
         onAddComment={selectedSection !== null 
           ? (text) => addComment(text, selectedSection)
           : null}
+        onDeleteComment={deleteComment}
       />
     </div>
   );
