@@ -1,7 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useParams } from 'react-router-dom';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import CommentableMarkdown from './components/CommentableMarkdown';
 
 function FileList() {
   const [documents, setDocuments] = React.useState([]);
@@ -14,7 +13,7 @@ function FileList() {
         return response.json();
       })
       .then(data => {
-        console.log('Received documents:', data); // Debug log
+        console.log('Received documents:', data);
         setDocuments(data);
       })
       .catch(error => {
@@ -55,6 +54,7 @@ function DocumentViewer() {
   const { path } = useParams();
   const [content, setContent] = React.useState('');
   const [error, setError] = React.useState(null);
+  const [saving, setSaving] = React.useState(false);
 
   React.useEffect(() => {
     if (!path) return;
@@ -74,6 +74,32 @@ function DocumentViewer() {
       });
   }, [path]);
 
+  const handleSave = async (newContent) => {
+    if (!path) return;
+    
+    setSaving(true);
+    try {
+      const response = await fetch(`http://localhost:3001/api/documents/${decodeURIComponent(path)}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'text/markdown'
+        },
+        body: newContent
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to save document');
+      }
+      
+      setContent(newContent);
+    } catch (error) {
+      console.error('Error saving document:', error);
+      setError('Failed to save comment. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (error) {
     return (
       <div className="flex-1 p-8 flex items-center justify-center">
@@ -87,9 +113,12 @@ function DocumentViewer() {
 
   return (
     <div className="flex-1 p-8 bg-law-paper min-h-screen overflow-auto">
-      <article className="prose prose-lg max-w-4xl mx-auto bg-white shadow-lg rounded-lg p-8">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
-      </article>
+      {saving && (
+        <div className="fixed top-4 right-4 bg-law-secondary text-white px-4 py-2 rounded-md shadow-lg z-50">
+          Saving...
+        </div>
+      )}
+      <CommentableMarkdown content={content} onSave={handleSave} />
     </div>
   );
 }

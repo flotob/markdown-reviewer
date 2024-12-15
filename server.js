@@ -8,6 +8,7 @@ const port = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.static(path.join(__dirname, 'build')));
+app.use(express.text({ type: 'text/markdown' }));
 
 // Helper function to recursively find markdown files
 async function findMarkdownFiles(dir) {
@@ -41,7 +42,7 @@ app.get('/api/documents', async (req, res) => {
     const workingDocsPath = path.join(__dirname, 'working-docs');
     const documents = await findMarkdownFiles(workingDocsPath);
     
-    console.log('Found documents:', documents); // Debug log
+    console.log('Found documents:', documents);
     res.json(documents);
   } catch (error) {
     console.error('Error reading directory:', error);
@@ -59,6 +60,29 @@ app.get('/api/documents/:filename(*)', async (req, res) => {
   } catch (error) {
     console.error('Error reading file:', error);
     res.status(404).json({ error: 'Document not found' });
+  }
+});
+
+// Endpoint to save document content with comments
+app.put('/api/documents/:filename(*)', async (req, res) => {
+  try {
+    const filename = req.params.filename;
+    const filePath = path.join(__dirname, 'working-docs', filename);
+    const newContent = req.body;
+
+    // Validate the content has proper comment format
+    const commentRegex = /<!--comment\nauthor: .*\ndate: .*\nid: .*\n[\s\S]*?-->/g;
+    const invalidComments = newContent.match(/<!--(?!comment\n)[\s\S]*?-->/g);
+    
+    if (invalidComments) {
+      throw new Error('Invalid comment format detected');
+    }
+
+    await fs.writeFile(filePath, newContent, 'utf-8');
+    res.status(200).json({ message: 'Document saved successfully' });
+  } catch (error) {
+    console.error('Error saving file:', error);
+    res.status(500).json({ error: 'Failed to save document' });
   }
 });
 
