@@ -106,7 +106,35 @@ function CommentInput({ onSubmit }) {
 }
 
 // Individual comment in the comments panel
-function Comment({ author, date, content, id, onDelete }) {
+function Comment({ author, date, content, id, onDelete, onEdit }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedContent, setEditedContent] = useState(content);
+  const textareaRef = React.useRef(null);
+
+  // Focus textarea when entering edit mode
+  React.useEffect(() => {
+    if (isEditing && textareaRef.current) {
+      textareaRef.current.focus();
+      textareaRef.current.setSelectionRange(editedContent.length, editedContent.length);
+    }
+  }, [isEditing]);
+
+  const handleSubmit = () => {
+    if (editedContent.trim() && editedContent !== content) {
+      onEdit(id, editedContent.trim());
+    }
+    setIsEditing(false);
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      handleSubmit();
+    } else if (e.key === 'Escape') {
+      setEditedContent(content);
+      setIsEditing(false);
+    }
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-sm p-4 mb-3 group relative">
       <div className="flex items-center mb-2">
@@ -120,7 +148,49 @@ function Comment({ author, date, content, id, onDelete }) {
           })}
         </span>
       </div>
-      <p className="text-gray-700 whitespace-pre-wrap">{content}</p>
+
+      {isEditing ? (
+        <div>
+          <textarea
+            ref={textareaRef}
+            className="w-full p-2 border border-gray-200 rounded-md 
+                     focus:ring-2 focus:ring-blue-400 focus:border-transparent
+                     resize-none text-sm text-gray-700"
+            value={editedContent}
+            onChange={(e) => setEditedContent(e.target.value)}
+            onKeyDown={handleKeyDown}
+            rows={3}
+            placeholder="Edit your comment... (Cmd+Enter to save, Esc to cancel)"
+          />
+          <div className="mt-2 flex justify-end space-x-2">
+            <button
+              onClick={() => {
+                setEditedContent(content);
+                setIsEditing(false);
+              }}
+              className="px-3 py-1 text-sm text-gray-600 hover:text-gray-800"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={!editedContent.trim() || editedContent === content}
+              className="px-3 py-1 text-sm bg-blue-500 text-white rounded-md 
+                       hover:bg-blue-600 transition-colors
+                       disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Save
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div
+          onClick={() => setIsEditing(true)}
+          className="text-gray-700 whitespace-pre-wrap cursor-pointer hover:bg-blue-50/40 rounded p-1 -m-1 transition-colors"
+        >
+          {content}
+        </div>
+      )}
       
       {/* Delete button */}
       <button
@@ -140,7 +210,7 @@ function Comment({ author, date, content, id, onDelete }) {
 }
 
 // Sliding comments panel
-function CommentsPanel({ comments = [], title = "Comments", onAddComment, onDeleteComment }) {
+function CommentsPanel({ comments = [], title = "Comments", onAddComment, onDeleteComment, onEditComment }) {
   return (
     <div className="w-96 bg-law-paper border-l border-gray-200 shadow-lg h-full flex flex-col">
       <div className="p-4 border-b border-gray-200">
@@ -159,6 +229,7 @@ function CommentsPanel({ comments = [], title = "Comments", onAddComment, onDele
               key={comment.id} 
               {...comment} 
               onDelete={onDeleteComment}
+              onEdit={onEditComment}
             />
           ))
         )}
@@ -361,6 +432,71 @@ export default function CommentableMarkdown({ content, onSave }) {
     }
   };
 
+  // Edit a comment in the markdown content
+  const editComment = async (commentId, newContent) => {
+    if (!selectedSection) return;
+    
+    // Find the section's content in the original markdown
+    const lines = content.split('\n');
+    let newLines = [];
+    
+    // Go through each line
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      
+      // If we find a comment start, check if it's the one we want to edit
+      if (line.startsWith('<!--comment')) {
+        const nextLines = [];
+        let j = i;
+        // Collect all lines of the comment
+        while (j < lines.length && !lines[j].includes('-->')) {
+          nextLines.push(lines[j]);
+          j++;
+        }
+        if (j < lines.length) {
+          nextLines.push(lines[j]); // Add closing -->
+        }
+        
+        // Check if this is the comment we want to edit
+        const commentText = nextLines.join('\n');
+        if (commentText.includes(`id: ${commentId}`)) {
+          // Replace the content but keep metadata
+          const [header, ...rest] = commentText.split('\n');
+          const metaLines = rest.slice(0, 3); // author, date, id
+          newLines.push(header, ...metaLines, newContent, '-->');
+          i = j;
+          continue;
+        }
+      }
+      
+      newLines.push(line);
+    }
+    
+    const newFileContent = newLines.join('\n');
+    
+    try {
+      // Save to file first
+      await onSave(newFileContent);
+      
+      // Only update UI after successful save
+      const updatedSections = [...sections];
+      const sectionComments = updatedSections[selectedSection].comments;
+      const commentIndex = sectionComments.findIndex(c => c.id === commentId);
+      if (commentIndex !== -1) {
+        sectionComments[commentIndex] = {
+          ...sectionComments[commentIndex],
+          content: newContent
+        };
+      }
+      
+      setSections(updatedSections);
+      setSelectedComments(updatedSections[selectedSection].comments);
+    } catch (error) {
+      console.error('Failed to edit comment:', error);
+      // TODO: Show error message to user
+    }
+  };
+
   // Handle selecting a section
   const handleSelectSection = (comments, sectionIndex) => {
     setSelectedSection(sectionIndex);
@@ -400,6 +536,7 @@ export default function CommentableMarkdown({ content, onSave }) {
           ? (text) => addComment(text, selectedSection)
           : null}
         onDeleteComment={deleteComment}
+        onEditComment={editComment}
       />
     </div>
   );
