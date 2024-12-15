@@ -10,8 +10,17 @@ app.use(cors());
 app.use(express.static(path.join(__dirname, 'build')));
 app.use(express.text({ type: 'text/markdown' }));
 
+// Helper function to format title from filename
+function formatTitle(filename) {
+  return filename
+    .replace('.md', '')
+    .split(/[-_]/)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
 // Helper function to recursively find markdown files
-async function findMarkdownFiles(dir) {
+async function findMarkdownFiles(dir, baseDir = dir) {
   const files = await fs.readdir(dir, { withFileTypes: true });
   const markdownFiles = [];
 
@@ -20,20 +29,39 @@ async function findMarkdownFiles(dir) {
     
     const fullPath = path.join(dir, file.name);
     if (file.isDirectory()) {
-      const nestedFiles = await findMarkdownFiles(fullPath);
+      const nestedFiles = await findMarkdownFiles(fullPath, baseDir);
       markdownFiles.push(...nestedFiles);
     } else if (file.name.endsWith('.md')) {
       // Get path relative to working-docs directory
-      const relativePath = path.relative(path.join(__dirname, 'working-docs'), fullPath);
+      const relativePath = path.relative(baseDir, fullPath);
+      
+      // Try to read the first line of the file for a title
+      let title = formatTitle(file.name);
+      try {
+        const content = await fs.readFile(fullPath, 'utf-8');
+        const firstLine = content.split('\n')[0];
+        if (firstLine.startsWith('# ')) {
+          title = firstLine.substring(2).trim();
+        }
+      } catch (error) {
+        console.warn(`Could not read title from ${fullPath}:`, error);
+      }
+
       markdownFiles.push({
         path: relativePath,
-        title: file.name.replace('.md', '').split('-').map(word => 
-          word.charAt(0).toUpperCase() + word.slice(1)
-        ).join(' ')
+        title
       });
     }
   }
-  return markdownFiles;
+
+  // Sort files: folders first, then alphabetically
+  return markdownFiles.sort((a, b) => {
+    const aIsFolder = !a.path.includes('.');
+    const bIsFolder = !b.path.includes('.');
+    if (aIsFolder && !bIsFolder) return -1;
+    if (!aIsFolder && bIsFolder) return 1;
+    return a.path.localeCompare(b.path);
+  });
 }
 
 // Endpoint to list available documents
