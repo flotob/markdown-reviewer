@@ -239,14 +239,16 @@ function CommentsPanel({ comments = [], title = "Comments", onAddComment, onDele
   );
 }
 
-// Split content into sections (paragraphs and their comments)
+// Split content into sections with line IDs
 const parseSections = (markdown) => {
   const lines = markdown.split('\n');
+  const lineMap = new Map(); // Map to store line -> comments associations
   const sections = [];
   let currentSection = {
     content: [],
     comments: [],
-    startLine: 0
+    startLine: 0,
+    lineId: null
   };
   
   let inComment = false;
@@ -254,6 +256,7 @@ const parseSections = (markdown) => {
   
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+    const lineId = `line-${i + 1}`;
     
     // Handle comment start
     if (line.startsWith('<!--comment')) {
@@ -268,17 +271,37 @@ const parseSections = (markdown) => {
       if (line.includes('-->')) {
         inComment = false;
         const commentText = commentBuffer.join('\n');
-        const match = commentText.match(/<!--comment\nauthor: (.*)\ndate: (.*)\nid: (.*)\n([\s\S]*?)-->/);
+        // Support both old and new comment formats
+        const targetLineId = commentText.match(/<!--comment:?(line-\d+)?\n/)?.[1];
+        const match = commentText.match(/<!--comment(?::line-\d+)?\nauthor: (.*)\ndate: (.*)\nid: (.*)\n([\s\S]*?)-->/);
         
-        if (match && sections.length > 0) {
-          // Add comment to the most recent section
-          const lastSection = sections[sections.length - 1];
-          lastSection.comments.push({
+        if (match) {
+          const comment = {
             author: match[1],
             date: match[2],
             id: match[3],
             content: match[4].trim()
-          });
+          };
+          
+          // If we have a line ID in the comment, use it
+          if (targetLineId && lineMap.has(targetLineId)) {
+            const targetSection = sections.find(s => s.lineId === targetLineId);
+            if (targetSection) {
+              targetSection.comments.push(comment);
+            }
+          } else {
+            // Fallback to previous behavior for old comments
+            let targetSection = null;
+            for (let j = sections.length - 1; j >= 0; j--) {
+              if (sections[j].content.some(l => l.trim())) {
+                targetSection = sections[j];
+                break;
+              }
+            }
+            if (targetSection) {
+              targetSection.comments.push(comment);
+            }
+          }
         }
       }
       continue;
@@ -286,51 +309,73 @@ const parseSections = (markdown) => {
     
     // Handle section content
     if (line.trim() !== '') {
+      // Start new section on headings, list items, or bold text that looks like a label
       if (currentSection.content.length > 0 && 
-          (line.startsWith('#') || line.startsWith('**') || line.startsWith('- '))) {
-        // New section starts with heading or list item
+          (line.startsWith('#') || 
+           line.startsWith('- ') || 
+           line.startsWith('**') ||
+           /^[A-Za-z]+:/.test(line))) {
+        if (!currentSection.lineId) {
+          currentSection.lineId = `line-${currentSection.startLine + 1}`;
+        }
         sections.push({ ...currentSection });
+        lineMap.set(lineId, sections.length);
         currentSection = {
           content: [line],
           comments: [],
-          startLine: i
+          startLine: i,
+          lineId
         };
       } else {
+        if (!currentSection.lineId) {
+          currentSection.lineId = lineId;
+        }
         currentSection.content.push(line);
       }
+      lineMap.set(lineId, sections.length);
     } else if (currentSection.content.length > 0) {
-      // Empty line after content = end of section
+      if (!currentSection.lineId) {
+        currentSection.lineId = `line-${currentSection.startLine + 1}`;
+      }
       sections.push({ ...currentSection });
       currentSection = {
         content: [],
         comments: [],
-        startLine: i + 1
+        startLine: i + 1,
+        lineId: null
       };
     }
   }
   
   // Add final section if it has content
   if (currentSection.content.length > 0) {
+    if (!currentSection.lineId) {
+      currentSection.lineId = `line-${currentSection.startLine + 1}`;
+    }
     sections.push(currentSection);
   }
   
-  return sections;
+  return { sections, lineMap };
 };
 
 export default function CommentableMarkdown({ content, onSave }) {
   const [sections, setSections] = useState([]);
+  const [lineMap, setLineMap] = useState(new Map());
   const [selectedSection, setSelectedSection] = useState(null);
   const [selectedComments, setSelectedComments] = useState(null);
   
   // Parse sections whenever content changes
   React.useEffect(() => {
-    setSections(parseSections(content));
+    const { sections: parsedSections, lineMap: parsedLineMap } = parseSections(content);
+    setSections(parsedSections);
+    setLineMap(parsedLineMap);
   }, [content]);
 
   // Add a new comment to the markdown content
   const addComment = async (text, sectionIndex) => {
     if (!text.trim()) return;
     
+    const section = sections[sectionIndex];
     const comment = {
       author: 'You',
       date: new Date().toISOString(),
@@ -338,10 +383,9 @@ export default function CommentableMarkdown({ content, onSave }) {
       content: text.trim()
     };
 
-    const commentMd = `\n<!--comment\nauthor: ${comment.author}\ndate: ${comment.date}\nid: ${comment.id}\n${comment.content}\n-->`;
+    const commentMd = `\n<!--comment:${section.lineId}\nauthor: ${comment.author}\ndate: ${comment.date}\nid: ${comment.id}\n${comment.content}\n-->`;
     
     // Find the section's end in the original content
-    const section = sections[sectionIndex];
     const lines = content.split('\n');
     let endLine = section.startLine;
     

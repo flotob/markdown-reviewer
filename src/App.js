@@ -79,6 +79,13 @@ function DocumentViewer() {
     
     setSaving(true);
     try {
+      console.log('Saving document:', {
+        path: decodeURIComponent(path),
+        contentLength: newContent.length,
+        firstLine: newContent.split('\n')[0],
+        contentPreview: newContent.slice(0, 500) + '...'
+      });
+
       const response = await fetch(`http://localhost:3001/api/documents/${decodeURIComponent(path)}`, {
         method: 'PUT',
         headers: {
@@ -88,12 +95,22 @@ function DocumentViewer() {
       });
       
       if (!response.ok) {
-        throw new Error('Failed to save document');
+        const errorData = await response.json();
+        console.error('Server error response:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorData
+        });
+        throw new Error(errorData.details || 'Failed to save document');
       }
       
       setContent(newContent);
     } catch (error) {
-      console.error('Error saving document:', error);
+      console.error('Error saving document:', {
+        message: error.message,
+        stack: error.stack,
+        type: error.constructor.name
+      });
       setError('Failed to save comment. Please try again.');
     } finally {
       setSaving(false);

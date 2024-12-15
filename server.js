@@ -70,19 +70,56 @@ app.put('/api/documents/:filename(*)', async (req, res) => {
     const filePath = path.join(__dirname, 'working-docs', filename);
     const newContent = req.body;
 
+    console.log('Save request received:', {
+      filename,
+      filePath,
+      contentLength: newContent.length,
+      firstLine: newContent.split('\n')[0],
+      contentPreview: newContent.slice(0, 500) + '...'
+    });
+
     // Validate the content has proper comment format
-    const commentRegex = /<!--comment\nauthor: .*\ndate: .*\nid: .*\n[\s\S]*?-->/g;
-    const invalidComments = newContent.match(/<!--(?!comment\n)[\s\S]*?-->/g);
+    const validCommentRegex = /<!--comment(?::line-\d+)?[\s\n]+author:[\s\n]+.*?[\s\n]+date:[\s\n]+.*?[\s\n]+id:[\s\n]+.*?[\s\n]+[\s\S]*?-->/g;
+    const invalidComments = newContent.match(/<!--(?!comment(?::line-\d+)?[\s\n]+author:)[\s\S]*?-->/g);
     
     if (invalidComments) {
+      console.error('Invalid comments found:', {
+        invalidComments,
+        regex: validCommentRegex.toString(),
+        content: newContent,
+        allComments: newContent.match(/<!--[\s\S]*?-->/g)
+      });
       throw new Error('Invalid comment format detected');
     }
 
+    // Log all comments in the content
+    const comments = newContent.match(validCommentRegex);
+    console.log('Valid comments found:', {
+      count: comments?.length || 0,
+      comments,
+      allComments: newContent.match(/<!--[\s\S]*?-->/g)
+    });
+
+    // Check if directory exists
+    const dir = path.dirname(filePath);
+    try {
+      await fs.access(dir);
+    } catch (e) {
+      console.log('Creating directory:', dir);
+      await fs.mkdir(dir, { recursive: true });
+    }
+
     await fs.writeFile(filePath, newContent, 'utf-8');
+    console.log('File saved successfully:', filePath);
     res.status(200).json({ message: 'Document saved successfully' });
   } catch (error) {
-    console.error('Error saving file:', error);
-    res.status(500).json({ error: 'Failed to save document' });
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code,
+      path: error.path
+    });
+    res.status(500).json({ error: 'Failed to save document', details: error.message });
   }
 });
 
